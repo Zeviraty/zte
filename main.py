@@ -8,14 +8,17 @@ import tty
 _old_term_settings = None
 
 def echo(enable:bool = False):
-    fd = sys.stdin.fileno()
-    new = termios.tcgetattr(fd)
-    if enable:
-        new[3] |= termios.ECHO
-    else:
-        new[3] &= ~termios.ECHO
+    try:
+        fd = sys.stdin.fileno()
+        new = termios.tcgetattr(fd)
+        if enable:
+            new[3] |= termios.ECHO
+        else:
+            new[3] &= ~termios.ECHO
 
-    termios.tcsetattr(fd, termios.TCSANOW, new)
+        termios.tcsetattr(fd, termios.TCSANOW, new)
+    except:
+        pass
 
 def wh():
     return os.get_terminal_size()
@@ -53,33 +56,41 @@ def cs():
 def rh():
     print("\x1b[H",end="")
 
-def border(tl:str="┌", tr:str="┐", bl:str="└", br="┘", m:str="─", s:str="│"):
-    x,y = wh()
+def border(tl:str="┌", tr:str="┐", bl:str="└", br="┘", m:str="─", s:str="│", x:int=0, y:int=0, w:int=None, h:int=None):
+    if w == None:
+        w = wh()[0]
+    if h == None:
+        h = wh()[1]
     sv()
-    rh()
-    print(f"{tl}{m*(x-2)}{tr}",flush=True)
-    for i in range(y-2):
+    mv(x,y)
+    print(f"{tl}{m*(w-2)}{tr}",flush=True)
+    mv(x,y+2)
+    for i in range(h-2):
         print(f"{s}",flush=True,end="")
-        print(f"\x1b[{x-1}C",flush=True,end="")
-        print(f"{s}",flush=True)
-    print(f"{bl}{m*(x-2)}{br}",flush=True,end="")
+        print(f"\x1b[{w-2}C",flush=True,end="")
+        print(f"{s}",flush=True,end="")
+        mv(x,y+i+2)
+    print(f"{bl}{m*(w-2)}{br}",flush=True,end="")
     ld()
 
 def raw(enabled: bool = True):
-    global _old_term_settings
-    fd = sys.stdin.fileno()
-    if enabled:
-        _old_term_settings = termios.tcgetattr(fd)
-        tty.setraw(fd)
-    else:
-        if _old_term_settings is not None:
-            termios.tcsetattr(fd, termios.TCSADRAIN, _old_term_settings)
-            _old_term_settings = None
+    try:
+        global _old_term_settings
+        fd = sys.stdin.fileno()
+        if enabled:
+            _old_term_settings = termios.tcgetattr(fd)
+            tty.setraw(fd)
+        else:
+            if _old_term_settings is not None:
+                termios.tcsetattr(fd, termios.TCSADRAIN, _old_term_settings)
+                _old_term_settings = None
+    except:
+        pass
 
 def getch():
     return sys.stdin.read(1)
 
 atexit.register(echo, True)
-atexit.register(cs)
 atexit.register(raw, False)
-
+atexit.register(rh)
+atexit.register(cs)
