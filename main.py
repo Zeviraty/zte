@@ -56,7 +56,7 @@ def cs():
 def rh():
     print("\x1b[H",end="")
 
-def border(tl:str="┌", tr:str="┐", bl:str="└", br="┘", m:str="─", s:str="│", x:int=0, y:int=0, w:int=None, h:int=None):
+def border(tl:str="┌", tr:str="┐", bl:str="└", br="┘", m:str="─", s:str="│", x:int=1, y:int=1, w:int=None, h:int=None):
     if w == None:
         w = wh()[0]
     if h == None:
@@ -65,11 +65,11 @@ def border(tl:str="┌", tr:str="┐", bl:str="└", br="┘", m:str="─", s:st
     mv(x,y)
     print(f"{tl}{m*(w-2)}{tr}",flush=True)
     mv(x,y+2)
-    for i in range(h-2):
+    for i in range(h-1):
         print(f"{s}",flush=True,end="")
         print(f"\x1b[{w-2}C",flush=True,end="")
         print(f"{s}",flush=True,end="")
-        mv(x,y+i+2)
+        mv(x,y+i+1)
     print(f"{bl}{m*(w-2)}{br}",flush=True,end="")
     ld()
 
@@ -90,7 +90,14 @@ def raw(enabled: bool = True):
 def getch():
     return sys.stdin.read(1)
 
+def hide(enabled: bool = True):
+    if enabled:
+        print("\033[?25l",end="")
+    else:
+        print("\033[?25h",end="")
+
 atexit.register(echo, True)
 atexit.register(raw, False)
 atexit.register(rh)
 atexit.register(cs)
+atexit.register(hide,False)
