@@ -3,11 +3,11 @@ import math
 import sys
 if sys.platform != "win32":
     import termios
+    import tty
 else:
     import msvcrt
     import ctypes
 import atexit
-import tty
 
 _old_term_settings = None
 
