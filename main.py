@@ -1,24 +1,44 @@
 import os
 import math
-import termios
 import sys
+if sys.platform != "win32":
+    import termios
+else:
+    import msvcrt
+    import ctypes
 import atexit
 import tty
 
 _old_term_settings = None
 
-def echo(enable:bool = False):
-    try:
-        fd = sys.stdin.fileno()
-        new = termios.tcgetattr(fd)
-        if enable:
-            new[3] |= termios.ECHO
-        else:
-            new[3] &= ~termios.ECHO
+if sys.platform != "win32":
+    def echo(enable:bool = False):
+        try:
+            fd = sys.stdin.fileno()
+            new = termios.tcgetattr(fd)
+            if enable:
+                new[3] |= termios.ECHO
+            else:
+                new[3] &= ~termios.ECHO
 
-        termios.tcsetattr(fd, termios.TCSANOW, new)
-    except:
-        pass
+            termios.tcsetattr(fd, termios.TCSANOW, new)
+        except:
+            pass
+else:
+    kernel32 = ctypes.windll.kernel32
+    hStdin = kernel32.GetStdHandle(-10)
+
+    def echo(enable: bool = False):
+        try:
+            mode = ctypes.c_uint()
+            kernel32.GetConsoleMode(hStdin, ctypes.byref(mode))
+            if enable:
+                mode.value |= 0x0004
+            else:
+                mode.value &= ~0x0004
+            kernel32.SetConsoleMode(hStdin, mode)
+        except:
+            pass
 
 def wh():
     return os.get_terminal_size()
@@ -73,19 +93,44 @@ def border(tl:str="┌", tr:str="┐", bl:str="└", br="┘", m:str="─", s:st
     print(f"{bl}{m*(w-2)}{br}",flush=True,end="")
     ld()
 
-def raw(enabled: bool = True):
-    try:
+if sys.platform != "win32":
+    def raw(enabled: bool = True):
+        try:
+            global _old_term_settings
+            fd = sys.stdin.fileno()
+            if enabled:
+                _old_term_settings = termios.tcgetattr(fd)
+                tty.setraw(fd)
+            else:
+                if _old_term_settings is not None:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, _old_term_settings)
+                    _old_term_settings = None
+        except:
+            pass
+else:
+    STD_INPUT_HANDLE = -10
+    ENABLE_ECHO_INPUT = 0x0004
+    ENABLE_LINE_INPUT = 0x0002
+
+    _hStdin = kernel32.GetStdHandle(STD_INPUT_HANDLE)
+
+    def raw(enabled: bool = True):
         global _old_term_settings
-        fd = sys.stdin.fileno()
-        if enabled:
-            _old_term_settings = termios.tcgetattr(fd)
-            tty.setraw(fd)
-        else:
-            if _old_term_settings is not None:
-                termios.tcsetattr(fd, termios.TCSADRAIN, _old_term_settings)
-                _old_term_settings = None
-    except:
-        pass
+        try:
+            mode = ctypes.c_uint()
+            kernel32.GetConsoleMode(_hStdin, ctypes.byref(mode))
+            if enabled:
+                if _old_term_settings is None:
+                    _old_term_settings = mode.value
+                new_mode = mode.value & ~(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT)
+                kernel32.SetConsoleMode(_hStdin, new_mode)
+            else:
+                if _old_term_settings is not None:
+                    kernel32.SetConsoleMode(_hStdin, _old_term_settings)
+                    _old_term_settings = None
+        except:
+            pass
+
 
 def getch():
     return sys.stdin.read(1)
