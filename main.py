@@ -132,8 +132,18 @@ else:
             pass
 
 
-def getch():
-    return sys.stdin.read(1)
+if sys.platform == "win32":
+    import msvcrt
+    def getch():
+        ch = msvcrt.getch()
+        if isinstance(ch, bytes):
+            ch = ch.decode(errors="ignore")
+        if ch == "\r":
+            return "\n"
+        return ch
+else:
+    def getch():
+        return sys.stdin.read(1)
 
 def hide(enabled: bool = True):
     if enabled:
