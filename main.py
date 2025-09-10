@@ -151,6 +151,79 @@ def hide(enabled: bool = True):
     else:
         print("\033[?25h",end="")
 
+if sys.platform != "win32":
+    def mouse(enable: bool = True):
+        """Enable or disable mouse reporting in the terminal (POSIX)."""
+        if enable:
+            sys.stdout.write("\033[?1000h")
+            sys.stdout.write("\033[?1006h")
+        else:
+            sys.stdout.write("\033[?1000l")
+            sys.stdout.write("\033[?1006l")
+        sys.stdout.flush()
+
+    def getmouse():
+        """Read and parse mouse events from stdin (POSIX)."""
+        seq = sys.stdin.read(1)
+        if seq == "\x1b":
+            seq += sys.stdin.read(1)
+            if seq.endswith("["):
+                seq += sys.stdin.read(1)
+                if seq.endswith("<"):
+                    rest = ""
+                    while True:
+                        c = sys.stdin.read(1)
+                        rest += c
+                        if c in "Mm":
+                            break
+                    try:
+                        parts = rest[:-1].split(";")
+                        btn, x, y = map(int, parts)
+                        pressed = rest.endswith("M")
+                        return {"button": btn, "x": x, "y": y, "pressed": pressed}
+                    except:
+                        return None
+        return None
+
+else:
+    kernel32 = ctypes.windll.kernel32
+
+    class COORD(ctypes.Structure):
+        _fields_ = [("X", ctypes.c_short), ("Y", ctypes.c_short)]
+
+    class MOUSE_EVENT_RECORD(ctypes.Structure):
+        _fields_ = [
+            ("dwMousePosition", COORD),
+            ("dwButtonState", ctypes.c_ulong),
+            ("dwControlKeyState", ctypes.c_ulong),
+            ("dwEventFlags", ctypes.c_ulong),
+        ]
+
+    class INPUT_RECORD(ctypes.Structure):
+        _fields_ = [
+            ("EventType", ctypes.c_ushort),
+            ("Event", MOUSE_EVENT_RECORD),
+        ]
+
+    def mouse(enable: bool = True):
+        pass
+
+    def getmouse():
+        """Read a mouse event (Windows)."""
+        hStdin = kernel32.GetStdHandle(-10)
+        rec = INPUT_RECORD()
+        nread = ctypes.c_ulong()
+        if kernel32.ReadConsoleInputW(hStdin, ctypes.byref(rec), 1, ctypes.byref(nread)):
+            if rec.EventType == 2:
+                pos = rec.Event.dwMousePosition
+                return {
+                    "x": pos.X + 1,
+                    "y": pos.Y + 1,
+                    "button": rec.Event.dwButtonState,
+                    "pressed": rec.Event.dwEventFlags == 0,
+                }
+        return None
+
 atexit.register(echo, True)
 atexit.register(raw, False)
 atexit.register(rh)
