@@ -164,26 +164,40 @@ if sys.platform != "win32":
 
     def getmouse():
         """Read and parse mouse events from stdin (POSIX)."""
-        seq = sys.stdin.read(1)
-        if seq == "\x1b":
-            seq += sys.stdin.read(1)
-            if seq.endswith("["):
-                seq += sys.stdin.read(1)
-                if seq.endswith("<"):
-                    rest = ""
-                    while True:
-                        c = sys.stdin.read(1)
-                        rest += c
-                        if c in "Mm":
-                            break
-                    try:
-                        parts = rest[:-1].split(";")
-                        btn, x, y = map(int, parts)
-                        pressed = rest.endswith("M")
-                        return {"button": btn, "x": x, "y": y, "pressed": pressed}
-                    except:
-                        return None
-        return None
+        ch = sys.stdin.read(1)
+        if ch != "\x1b":
+            return None
+        seq = ch + sys.stdin.read(1)
+        if not seq.endswith("["):
+            return None
+        if sys.stdin.read(1) != "<":
+            return None
+
+        rest = ""
+        while True:
+            c = sys.stdin.read(1)
+            rest += c
+            if c in "Mm":
+                break
+        try:
+            b, x, y = map(int, rest[:-1].split(";"))
+            pressed = rest.endswith("M")
+
+            button = None
+            if b & 64:
+                button = 4 if (b & 1) == 0 else 5
+            else:
+                btn = b & 3
+                if btn == 0:
+                    button = 1
+                elif btn == 1:
+                    button = 3
+                elif btn == 2:
+                    button = 2
+
+            return {"button": button, "x": x, "y": y, "pressed": pressed}
+        except:
+            return None
 
 else:
     kernel32 = ctypes.windll.kernel32
@@ -208,20 +222,37 @@ else:
     def mouse(enable: bool = True):
         pass
 
-    def getmouse():
-        """Read a mouse event (Windows)."""
         hStdin = kernel32.GetStdHandle(-10)
         rec = INPUT_RECORD()
         nread = ctypes.c_ulong()
         if kernel32.ReadConsoleInputW(hStdin, ctypes.byref(rec), 1, ctypes.byref(nread)):
             if rec.EventType == 2:
                 pos = rec.Event.dwMousePosition
-                return {
-                    "x": pos.X + 1,
-                    "y": pos.Y + 1,
-                    "button": rec.Event.dwButtonState,
-                    "pressed": rec.Event.dwEventFlags == 0,
-                }
+                btnstate = rec.Event.dwButtonState
+                flags = rec.Event.dwEventFlags
+
+                button = None
+                pressed = False
+
+                if flags == 0:
+                    if btnstate & 0x1:
+                        button, pressed = 1, True
+                    elif btnstate & 0x2:
+                        button, pressed = 2, True
+                    elif btnstate & 0x4:
+                        button, pressed = 3, True
+                elif flags == 1:
+                    return None
+                elif flags == 4:
+                    delta = ctypes.c_short(btnstate >> 16).value
+                    button = 4 if delta > 0 else 5
+                    pressed = True
+
+                if button:
+                    return {"button": button,
+                            "x": pos.X + 1,
+                            "y": pos.Y + 1,
+                            "pressed": pressed}
         return None
 
 atexit.register(echo, True)
